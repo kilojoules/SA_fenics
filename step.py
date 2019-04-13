@@ -11,7 +11,12 @@ DEG = 2
 
 mesh = fe.Mesh('step.xml')
 
-MODEL = True
+# Control pannel
+MODEL = True # flag to use SA model
+b = fe.Expression(('0', '0'), degree=DEG) # forcing
+nu = fe.Constant(1)
+rho = fe.Constant(1)
+RE = 10000 # Inlet velocity
 
 V   = fe.VectorElement("Lagrange", mesh.ufl_cell(), 2)
 P   = fe.FiniteElement("Lagrange", mesh.ufl_cell(), 1)
@@ -28,14 +33,10 @@ if MODEL:
 else:
    (v, q, )    = fe.TestFunctions(W)
    (u, p, )    = fe.split(W0)
-   nu_trial = fe.Constant(2)
+   nu_trial = fe.Constant(RE/100)
    fv1 = fe.Constant(1)
 
 
-b = fe.Expression(('0', '0'), degree=DEG)
-nu = fe.Constant(1)
-rho = fe.Constant(1)
-RE = 100
 
 #-------------------------------------------------------
 # Defining essential/Dirichlet boundary conditions
@@ -133,17 +134,20 @@ if MODEL:
    #fv2 = 1 - xi / (1 + xi * fv1)
    ft2 = Ct3 * fe.exp(-Ct4 * xi * xi)
    #Omega = 1.
-   Omega = 0.5 * (fe.grad(u) - fe.grad(u).T)
-   S = fe.sqrt(2 * fe.inner(Omega, Omega))
+   Omega = fe.Constant(0.5) * (fe.grad(u) - fe.grad(u).T)
+   S = fe.Constant(2) * fe.inner(Omega, Omega)
+   #S = fe.sqrt(fe.Constant(2) * fe.inner(Omega.T, Omega)) # TODO: why doesn't sqrt work??
    #S = 1.
+   #Stilde = nu_trial /(kappa * kappa * d * d) * fv2
    Stilde = S + nu_trial /(kappa * kappa * d * d) * fv2
    #ft2 = fe.Constant(1.)
    ft2 = Ct3 * fe.exp(- 1 * Ct4 * xi * xi)
    #r = fe.Constant(1.)
    r = Min(nu_trial / (Stilde * kappa * kappa * d * d), 10)
    g = r + Cw2 * (r * r * r * r * r * r - r)
-   fw = g * ((1 + Cw3 * Cw3 * Cw3 * Cw3 * Cw3 * Cw3) / (g * g * g * g * g * g + Cw3 * Cw3 * Cw3 * Cw3 * Cw3 * Cw3)) ** (1. / 6.)
-   #fw = fe.Constant(1)
+   #fw = (g * ((1 + Cw3 * Cw3 * Cw3 * Cw3 * Cw3 * Cw3) / (g * g * g * g * g * g + Cw3 * Cw3 * Cw3 * Cw3 * Cw3 * Cw3))) ** (1. / 6.)
+   fw = fe.elem_pow(g * ((1 + Cw3 * Cw3 * Cw3 * Cw3 * Cw3 * Cw3) / (g * g * g * g * g * g + Cw3 * Cw3 * Cw3 * Cw3 * Cw3 * Cw3)), 1. / 6.)
+   fw = fe.Constant(1)
    
 
 ns_conv = fe.inner(v, fe.grad(u)*u)*fe.dx
@@ -160,13 +164,14 @@ if MODEL:
    tv1 = fe.inner(nu_test, Cb1 * (1 - ft2) * Stilde * nu_trial) * fe.dx 
    tv2 = fe.inner((1 / sigma) * fe.grad(nu_test), (nu + nu_trial) * fe.grad(nu_trial)) * fe.dx 
    tv3 = fe.inner(nu_test / sigma * Cb2, fe.dot(fe.grad(nu_trial), fe.grad(nu_trial))) * fe.dx
-   tv4 = fe.inner(nu_test * (Cw1 * fw - Cb1 / kappa ** 2 * ft2), (nu_trial / d) * (nu_trial / d)) * fe.dx
+   tv4 = fe.inner(nu_test * (Cw1 * fw - Cb1 / kappa / kappa * ft2), (nu_trial / d) * (nu_trial / d)) * fe.dx
    #tv5 = fe.inner(ft1, DELU) * fe.dx
    
-   TV = fe.inner(fe.grad(nu_trial), fe.grad(nu_test)) * fe.dx
+   #TV = fe.inner(fe.grad(nu_trial), fe.grad(nu_test)) * fe.dx
    #TV += tv2 + tv3 + tv_adv
-   TV = tv2 + tv3 + tv4
-   #TV = tv1 + tv2 + tv3 + tv4 + tv_adv
+
+   #TV =  tv2 - tv3 + tv4 + tv_adv
+   TV = -1 * tv1 + tv2 - tv3 + tv4 + tv_adv
 
 weakForm  = NS
 
