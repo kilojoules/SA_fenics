@@ -12,15 +12,17 @@ DEG = 2
 mesh = fe.Mesh('step.xml')
 
 # Control pannel
-MODEL = True # flag to use SA model
+MODEL = False # flag to use SA model
 b = fe.Expression(('0', '0'), degree=DEG) # forcing
-nu = fe.Constant(1)
+nu = fe.Constant(1e-4)
 rho = fe.Constant(1)
-RE = 10# Inlet velocity
+RE = 10 
+lmx = 1 # mixing length :)
+# Re = 10 / 1e-4 = 1e5
 
 V   = fe.VectorElement("Lagrange", mesh.ufl_cell(), 2)
 P   = fe.FiniteElement("Lagrange", mesh.ufl_cell(), 1)
-NU   = fe.FiniteElement("Lagrange", mesh.ufl_cell(), 2)
+NU   = fe.FiniteElement("Lagrange", mesh.ufl_cell(), 1)
 if MODEL: M   = fe.MixedElement([V, P, NU])
 else: M   = fe.MixedElement([V, P])
 W   = fe.FunctionSpace(mesh, M)
@@ -33,7 +35,7 @@ if MODEL:
 else:
    (v, q, )    = fe.TestFunctions(W)
    (u, p, )    = fe.split(W0)
-   nu_trial = fe.Constant(RE/100)
+   nu_trial = fe.Constant(5) # artificial viscosity!!!
    fv1 = fe.Constant(1)
 
 
@@ -81,7 +83,7 @@ def dbc_top(x, on_boundary):
 uD_X0 = fe.Expression(('0', '0'), degree=DEG)
 uD_X1 = fe.Expression(('0', '0'), degree=DEG)
 uD_Y0 = fe.Expression(('0', '0'), degree=DEG)
-uD_Y1 = fe.Expression(('%s' % RE, '0'), degree=DEG)
+uD_Y1 = fe.Expression(('%s * pow((2.5 - x[1]), 2)' % RE, '0'), degree=DEG)
 bc_p  = fe.Constant(('0'))
 bc_v  = fe.Constant(('0'))
 bc_vf  = fe.Constant(3 * nu)
@@ -89,7 +91,8 @@ bc_vf  = fe.Constant(3 * nu)
 bc_1 = fe.DirichletBC(W.sub(0), uD_X0, dbc1)
 bc_2 = fe.DirichletBC(W.sub(0), uD_Y0, dbc2)
 bc_3 = fe.DirichletBC(W.sub(0), uD_X1, dbc3)
-bc_inflow = fe.DirichletBC(W.sub(0), fe.Constant((RE, '0')), dbc_inflow)
+bc_inflow = fe.DirichletBC(W.sub(0), fe.Expression(('%s * pow((x[1]) / 2.5, 2)' % RE, '0'), degree=DEG), dbc_inflow)
+#bc_inflow = fe.DirichletBC(W.sub(0), fe.Constant((RE, '0')), dbc_inflow)
 bc_p = fe.DirichletBC(W.sub(1), bc_p, dbc1)
 if MODEL:
    bc_v_x1 = fe.DirichletBC(W.sub(2), bc_v, dbc1)
@@ -125,7 +128,7 @@ if MODEL:
    #d = Min(d1, d4)
 
    xi = nu_trial / nu
-   fv1 = xi * xi * xi / (xi * xi * xi + Cv1 * Cv1 * Cv1)
+   fv1 = fe.elem_pow(xi, 3) / (fe.elem_pow(xi, 3) + Cv1 * Cv1 * Cv1)
    #fv2 = fe.Constant(1)
    fv2 = 1 - xi / (1 + xi * fv1)
    #ft2 = fe.Constant(1)
@@ -137,7 +140,7 @@ if MODEL:
    #Stilde = nu_trial /(kappa * kappa * d * d) * fv2
    #Stilde = nu_trial * fe.Constant(1000)
    Stilde = S + nu_trial /(kappa * kappa * d * d) * fv2
-   ft2 = Ct3 * fe.exp(fe.Constant(- 1) * Ct4 * xi * xi)
+   ft2 = Ct3 * fe.exp(fe.Constant(-1) * Ct4 * xi * xi)
    #ft2 = fe.Constant(0)
    #r =fe.Constant(1)
    #r = nu_trial / (Stilde * kappa * kappa * d * d)
@@ -152,7 +155,12 @@ if MODEL:
 
 ns_conv = fe.inner(v, fe.grad(u)*u)*fe.dx
 ns_press = p * fe.div(v) * fe.dx
-ns_tv = fe.inner((fv1 * nu_trial) * fe.grad(v), fe.grad(u)) * fe.dx
+s = fe.grad(u) + fe.grad(u).T
+if MODEL: ns_tv = fe.inner((fv1 * nu_trial) * fe.grad(v), fe.grad(u)) * fe.dx
+else: 
+   sij = 0.5 * (fe.grad(u) + fe.grad(u).T)
+   nu_tv = lmx ** (2 * fe.inner(sij, sij)) ** (0.5)
+   ns_tv = fe.inner((nu_tv) * fe.grad(v), fe.grad(u)) * fe.dx
 ns_visc = nu * fe.inner(fe.grad(v), fe.grad(u)) * fe.dx
 ns_conti = q * fe.div(u) * fe.dx
 ns_forcing = fe.dot(v, b)*fe.dx
@@ -164,16 +172,17 @@ fe.parameters["form_compiler"]["quadrature_degree"] = N
 if MODEL:
    #dx(metadata={'quadrature_degree':N}) # maybe 10. <10?
    tv_adv = fe.inner(nu_test, fe.inner(u, fe.grad(nu_trial))) * fe.dx(metadata={'quadrature_degree':N})
-   tv1 = fe.inner(nu_test, Cb1 * (1 - ft2) * Stilde * nu_trial) * fe.dx(metadata={'quadrature_degree':N})
+   tv1 = fe.inner(nu_test, Cb1 * (1 - ft2) * 1 * nu_trial) * fe.dx(metadata={'quadrature_degree':N}) # TODO Missing stilde term
+   #tv1 = fe.inner(nu_test, Cb1 * (1 - ft2) * Stilde * nu_trial) * fe.dx(metadata={'quadrature_degree':N})
    tv2 = fe.inner((1 / sigma) * fe.grad(nu_test), (nu + nu_trial) * fe.grad(nu_trial)) * fe.dx(metadata={'quadrature_degree':N})
    tv3 = fe.inner(nu_test / sigma * Cb2, fe.dot(fe.grad(nu_trial), fe.grad(nu_trial))) * fe.dx(metadata={'quadrature_degree':N})
    #tv4 = fe.inner(nu_test * (Cw1 * fw - Cb1 / kappa / kappa * ft2), (nu_trial / d) * (nu_trial / d)) * fe.dx
-   tv4 = fe.inner(nu_test, (Cw1  - Cb1 / kappa / kappa * ft2) * (nu_trial / d) **2) * fe.dx(metadata={'quadrature_degree':N})
+   tv4 = fe.inner(nu_test, (Cw1 - Cb1 / kappa / kappa * ft2) * (nu_trial / d) **2) * fe.dx(metadata={'quadrature_degree':N}) # TODO - missing fw term
    #tv4 = fe.inner(nu_test, (Cw1 * fw - Cb1 / kappa / kappa * ft2) * (nu_trial / d) **2) * fe.dx(metadata={'quadrature_degree':N})
    #tv5 = fe.inner(ft1, DELU) * fe.dx
    
    #TV = fe.inner(fe.grad(nu_trial), fe.grad(nu_test)) * fe.dx
-   TV = tv2 - tv3 + tv_adv + tv4
+   TV = tv2 - tv3 + tv_adv + tv4 - tv1
 
    #TV =  tv2 - tv3 + tv4 + tv_adv
    #TV =  tv2 - tv3 + tv4 + tv_adv
@@ -189,7 +198,7 @@ tau = (1.0/3.0)*(he*he)/(4.0 * nu * rho)
 
 res = - tau * fe.inner(fe.dot(u, fe.grad(v)), fe.grad(u)*u) * fe.dx
 res += - tau * fe.inner(fe.dot(u, fe.grad(v)),  fe.grad(p)) * fe.dx
-res += - tau * fe.inner(fe.dot(u, fe.grad(v)),  -1 * nu_trial * fe.div(fe.grad(u))) * fe.dx
+res += - tau * fe.inner(fe.dot(u, fe.grad(v)),  -1 * fv1 * nu_trial * fe.div(fe.grad(u))) * fe.dx
 res += - tau * fe.inner(fe.dot(u, fe.grad(v)), -1 * nu * fe.div(fe.grad(u))) * fe.dx 
 res += - tau * fe.inner(fe.dot(u, fe.grad(q)), fe.div(u)) * fe.dx
 res += - tau * fe.inner(fe.dot(u, fe.grad(v)), -1 * b) * fe.dx 
@@ -214,8 +223,8 @@ if MODEL and False:
 
 stab     = -tau*fe.inner(fe.grad(q), fe.grad(p))*fe.dx
 if STAB: 
-   weakForm = weakForm + stab
-   #weakForm += res
+   weakForm += res
+weakForm = weakForm + stab
 
 dW  = fe.TrialFunction(W)
 dFdW = fe.derivative(weakForm, W0, dW)
@@ -246,11 +255,17 @@ if MODEL:
    vtkFile = fe.File('nut.pvd')
    vtkFile << nu_t
 
-T = fe.FunctionSpace(mesh, 'CG', 1)
-#T = fe.TensorFunctionSpace(mesh, 'CG', 1)
-vtkFile = fe.File('tv4.pvd')
-#vtkFile << fe.project((nu_trial / d) **2, T)
-vtkFile << fe.project(Cw1 * fw, T)
+if MODEL:
+   T = fe.FunctionSpace(mesh, 'CG', 1)
+   #T = fe.TensorFunctionSpace(mesh, 'CG', 1)
+   vtkFile = fe.File('fw.pvd')
+   vtkFile << fe.project(fw, T)
+   vtkFile = fe.File('g.pvd')
+   vtkFile << fe.project(g, T)
+   vtkFile = fe.File('r.pvd')
+   vtkFile << fe.project(r, T)
+   vtkFile = fe.File('Stilde.pvd')
+   vtkFile << fe.project(Stilde, T)
 #vtkFile << fe.project( (nu_trial / (Stilde * kappa ** 2 * d ** 2 )) ** 6, T)
 #vtkFile << fe.project( 1. / (fe.elem_pow(kappa, 2) * fe.elem_pow(d, 2) ), T)
 #vtkFile << fe.project(g ** (1./6.), T)
