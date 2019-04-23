@@ -14,9 +14,9 @@ mesh = fe.Mesh('step.xml')
 # Control pannel
 MODEL = False # flag to use SA model
 b = fe.Expression(('0', '0'), degree=DEG) # forcing
-nu = fe.Constant(1e-4)
+nu = fe.Constant(1e-2)
 rho = fe.Constant(1)
-RE = 10 
+RE = 50
 lmx = 1 # mixing length :)
 # Re = 10 / 1e-4 = 1e5
 
@@ -83,7 +83,8 @@ def dbc_top(x, on_boundary):
 uD_X0 = fe.Expression(('0', '0'), degree=DEG)
 uD_X1 = fe.Expression(('0', '0'), degree=DEG)
 uD_Y0 = fe.Expression(('0', '0'), degree=DEG)
-uD_Y1 = fe.Expression(('%s * pow((2.5 - x[1]), 2)' % RE, '0'), degree=DEG)
+#uD_Y1 = fe.Expression(('%s * pow((2.5 - x[1]), 2)' % RE, '0'), degree=DEG)
+uD_Y1 = fe.Expression(('%s' % RE, '0'), degree=DEG)
 bc_p  = fe.Constant(('0'))
 bc_v  = fe.Constant(('0'))
 bc_vf  = fe.Constant(3 * nu)
