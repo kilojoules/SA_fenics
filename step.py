@@ -74,7 +74,7 @@ def dbc_outflow(x, on_boundary):
 
 # top
 def dbc_top(x, on_boundary):
-    return on_boundary and np.abs(x[1] - 2.5) < EPSILON
+    return on_boundary and np.abs(x[1] - 5) < EPSILON
 
 #--------------------------------------------------------
 # Defining essential/Dirichlet boundary conditions
