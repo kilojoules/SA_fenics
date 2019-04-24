@@ -66,7 +66,7 @@ def dbc3(x, on_boundary):
 
 # inflow
 def dbc_inflow(x, on_boundary):
-    return on_boundary and np.abs(x[0] + 3) < EPSILON
+    return on_boundary and np.abs(x[0] + 10) < EPSILON
 
 # outlet
 def dbc_outflow(x, on_boundary):
