@@ -14,11 +14,11 @@ mesh = fe.Mesh('step.xml')
 # Control pannel
 MODEL = False # flag to use SA model
 b = fe.Expression(('0', '0'), degree=DEG) # forcing
-nu = fe.Constant(1e-2)
+nu = fe.Constant(2e-6)
 rho = fe.Constant(1)
-RE = 50
-lmx = 1 # mixing length :)
-dt = 0.01
+RE = 0.01
+lmx = 1 # mixing length 
+dt = 0.1
 # Re = 10 / 1e-4 = 1e5
 
 V   = fe.VectorElement("Lagrange", mesh.ufl_cell(), 2)
@@ -31,7 +31,8 @@ W   = fe.FunctionSpace(mesh, M)
 W0 = fe.Function(W)
 We = fe.Function(W)
 u0, p0 = fe.split(We)
-
+#u0 = fe.Function((W0[0], W0[1]), 'Velocity000023.vtu')
+#p0 = fe.Function(W0[2])
 v, q = fe.TestFunctions(W)
 #u, p = fe.split(W0)
 u,p = (fe.as_vector((W0[0], W0[1])), W0[2])
@@ -65,7 +66,7 @@ def dbc3(x, on_boundary):
 
 # inflow
 def dbc_inflow(x, on_boundary):
-    return on_boundary and np.abs(x[0] + 3) < EPSILON
+    return on_boundary and np.abs(x[0] + .2) < EPSILON
 
 # outlet
 def dbc_outflow(x, on_boundary):
@@ -93,7 +94,7 @@ bc_2 = fe.DirichletBC(W.sub(0), uD_Y0, dbc2)
 bc_3 = fe.DirichletBC(W.sub(0), uD_X1, dbc3)
 bc_inflow = fe.DirichletBC(W.sub(0), fe.Expression(('%s * pow((x[1]) / 2.5, 2)' % RE, '0'), degree=DEG), dbc_inflow)
 #bc_inflow = fe.DirichletBC(W.sub(0), fe.Constant((RE, '0')), dbc_inflow)
-bc_p = fe.DirichletBC(W.sub(1), bc_p, dbc1)
+bc_p = fe.DirichletBC(W.sub(1), bc_p, dbc_top)
 
 def Max(a, b): return (a + b + abs(a-b)) / 2.
 def Min(a, b): return (a + b - abs(a-b)) / 2.
@@ -148,6 +149,9 @@ t = 0.0
 t_end = 5.0
 pFile = fe.File('Pressure.pvd')
 uFile = fe.File('Velocity.pvd')
+vFile = fe.File('Vorticity.pvd')
+wFile = fe.File('W.pvd')
+T = fe.FunctionSpace(mesh, 'CG', 1)
 #solver.solve()
 while t < t_end:
     print("t =",t)
@@ -156,6 +160,9 @@ while t < t_end:
     uFile << u1
     pFile << p1
     We.assign(W0)
+    wFile << W0
+    omega = fe.curl(u)
+    vFile << fe.project(fe.inner(omega, omega), T)
     t += dt
 
 u, p = W0.split()

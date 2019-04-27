@@ -1,32 +1,47 @@
-h1 = 1. / 10.;
-h2 = 1. / 100.;
-Point(newp) = {0.0,0.0,0.0,h2};
-Point(newp) = {10.0,0.0,0.0,h1};
-Point(newp) = {10.0,2.5,0.0,h1};
-Point(newp) = {-3.0,2.5,0.0,h1};
-Point(newp) = {-3.0,1.0,0.0,h2};
-Point(newp) = {0.0,1.0,0.0,h2};
+C = 2;
+h1 = 0.01 / C;
+h2 = 0.1 / C;
 //+
-Line(1) = {6, 5};
+Point(1) = {0, 0, 0, 1.0};
 //+
-Line(2) = {5, 4};
+Point(2) = {0, 1, 0, 1.0};
 //+
-Line(3) = {4, 3};
+Point(3) = {-0.2, 1, 0, 1.0};
 //+
-Line(4) = {3, 2};
+Point(4) = {-0.2, 2.5, 0, 1.0};
 //+
-Line(5) = {2, 1};
+Point(5) = {10, 2.5, 0, 1.0};
 //+
-Line(6) = {1, 6};
+Point(6) = {10, 0, 0, 1.0};
 //+
-
-Line Loop(1) = {1, 2, 3, 4, 5, 6};
+Line(1) = {1, 2};
+//+
+Line(2) = {2, 3};
+//+
+Line(3) = {3, 4};
+//+
+Line(4) = {4, 5};
+//+
+Line(5) = {5, 6};
+//+
+Line(6) = {6, 1};
+//+
+Line Loop(1) = {4, 5, 6, 1, 2, 3};
 //+
 Plane Surface(1) = {1};
 //+
-///Transfinite Surface {1};
+Field[1] = Box;
 //+
-///Transfinite Curve {1, 2, 3, 4} = 10 Using Progression 1;
+Field[1].VIn = h1;
 //+
-///Recombine Surface {1};
-
+Field[1].VOut = h2;
+//+
+Field[1].XMax = 0.2;
+//+
+Field[1].XMin = -3.2;
+//+
+Field[1].YMax = 1.2;
+//+
+Field[1].YMin = -0.2;
+//+
+Background Field = 1;
